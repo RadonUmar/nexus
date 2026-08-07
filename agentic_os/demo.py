@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Dict, Optional
 from uuid import uuid4
@@ -75,13 +76,18 @@ def record_demo_command(payload: DemoCommandRequest | Dict[str, Any]) -> Dict[st
 
 def is_demo_project_command(message: str) -> bool:
     text = message.lower()
-    return any(
+    direct_match = any(
         phrase in text
         for phrase in [
             "run this script",
             "run the script",
             "run a script",
+            "run backend script",
+            "run the backend script",
             "project script",
+            "script on the project",
+            "script on my computer",
+            "script on the computer",
             "send a command",
             "command to my pc",
             "upload script",
@@ -90,6 +96,7 @@ def is_demo_project_command(message: str) -> bool:
             "project feedback",
         ]
     )
+    return direct_match or bool(re.search(r"\brun\b.*\bscript\b", text))
 
 
 @router.get("/projects")

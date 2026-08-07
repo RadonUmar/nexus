@@ -284,6 +284,16 @@ You can type anything here...</textarea>
                     <div class="flex-1"></div>
                     <div id="project-relay-status" class="text-sm text-text-secondary">Syncing...</div>
                 </div>
+                <div id="project-relay-terminal" class="relay-terminal">
+                    <div class="relay-terminal-header">
+                        <span><i class="fas fa-terminal"></i> live pc terminal</span>
+                        <small id="project-relay-terminal-state">waiting for phone command</small>
+                    </div>
+                    <div id="project-relay-terminal-lines" class="relay-terminal-lines">
+                        <p><span>$</span> nexus relay --watch phone</p>
+                        <p><span>→</span> listening for script or feedback intent...</p>
+                    </div>
+                </div>
                 <div class="relay-grid">
                     <section>
                         <h3>Projects</h3>
@@ -403,21 +413,31 @@ function createWindow(appName = 'default', title = null, position = null) {
     // Position - account for sidebar
     if (!position) {
         const sidebarWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')) || 380;
+        if (appName === 'code_dashboard' || appName === 'code') {
+            position = {
+                top: 66,
+                left: Math.max(32, Math.floor((window.innerWidth - sidebarWidth - 760) / 2)),
+            };
+        } else {
         position = {
             top: 100 + (windowIdCounter % 3) * 50,
             left: 100 + (windowIdCounter % 3) * 50
         };
+        }
         // Ensure window doesn't overlap with sidebar and account for menu bar
         const menuBarHeight = 28;
-        position.top += menuBarHeight;
-        if (position.left + 600 > window.innerWidth - sidebarWidth) {
-            position.left = Math.max(50, window.innerWidth - sidebarWidth - 650);
+        if (appName !== 'code_dashboard' && appName !== 'code') {
+            position.top += menuBarHeight;
+        }
+        const defaultWidth = appName === 'code_dashboard' || appName === 'code' ? 760 : 600;
+        if (position.left + defaultWidth > window.innerWidth - sidebarWidth) {
+            position.left = Math.max(24, window.innerWidth - sidebarWidth - defaultWidth - 24);
         }
     }
     window.style.top = `${position.top}px`;
     window.style.left = `${position.left}px`;
-    window.style.width = '600px';
-    window.style.height = '450px';
+    window.style.width = appName === 'code_dashboard' || appName === 'code' ? '760px' : '600px';
+    window.style.height = appName === 'code_dashboard' || appName === 'code' ? '680px' : '450px';
     
     // Window content with macOS traffic lights
     window.innerHTML = `
@@ -821,7 +841,12 @@ chatForm.addEventListener('submit', async (e) => {
         if (data.data && data.data.demo_event) {
             const existingRelayWindow = Array.from(document.querySelectorAll('.window'))
                 .find(w => w.querySelector('.project-relay'));
-            if (!existingRelayWindow) {
+            if (existingRelayWindow) {
+                existingRelayWindow.style.width = '760px';
+                existingRelayWindow.style.height = '680px';
+                existingRelayWindow.style.top = '66px';
+                bringToFront(existingRelayWindow);
+            } else {
                 createWindow('code_dashboard', 'Project Relay');
             }
             setTimeout(() => refreshProjectRelay(), 250);
@@ -2902,6 +2927,7 @@ async function syncDisconnectIntegration(integrationId) {
 // Project Relay Dashboard
 // ============================================
 let projectRelayPoller = null;
+let projectRelayLastEventId = null;
 
 function ensureProjectRelayPolling() {
     if (projectRelayPoller) return;
@@ -2918,6 +2944,9 @@ async function refreshProjectRelay(options = {}) {
     const status = document.getElementById('project-relay-status');
     const projectsContainer = document.getElementById('project-relay-projects');
     const eventsContainer = document.getElementById('project-relay-events');
+    const terminal = document.getElementById('project-relay-terminal');
+    const terminalState = document.getElementById('project-relay-terminal-state');
+    const terminalLines = document.getElementById('project-relay-terminal-lines');
 
     if (!projectsContainer || !eventsContainer) return;
     if (status && !options.quiet) status.textContent = 'Syncing...';
@@ -2930,6 +2959,18 @@ async function refreshProjectRelay(options = {}) {
         eventsContainer.innerHTML = data.events.length
             ? data.events.map(renderRelayEvent).join('')
             : renderRelayEmptyState();
+
+        if (terminal && terminalState && terminalLines) {
+            terminal.innerHTML = renderRelayTerminal(data.events[0], data.projects);
+            const latestEventId = data.events[0]?.id || null;
+            terminal.classList.toggle('active', Boolean(latestEventId));
+            if (latestEventId && latestEventId !== projectRelayLastEventId) {
+                terminal.classList.remove('event-pulse');
+                void terminal.offsetWidth;
+                terminal.classList.add('event-pulse');
+                projectRelayLastEventId = latestEventId;
+            }
+        }
 
         if (status) {
             status.textContent = data.last_updated
@@ -2981,6 +3022,57 @@ function renderRelayEvent(event) {
                 <code>${escapeHtml(event.command)}</code>
             </div>
         </article>
+    `;
+}
+
+function renderRelayTerminal(event, projects) {
+    if (!event) {
+        return `
+            <div class="relay-terminal-header">
+                <span><i class="fas fa-terminal"></i> live pc terminal</span>
+                <small>waiting for phone command</small>
+            </div>
+            <div class="relay-terminal-lines">
+                <p><span>$</span> nexus relay --watch phone</p>
+                <p><span>→</span> listening for script or feedback intent...</p>
+            </div>
+        `;
+    }
+
+    const project = projects.find(item => item.id === event.project_id) || projects[0];
+    const isFeedback = event.kind === 'feedback';
+    const lines = isFeedback
+        ? [
+            '$ nexus feedback attach --source phone',
+            `→ project: ${project.path}`,
+            `→ note: ${event.feedback || event.command}`,
+            '✓ feedback queued in dashboard',
+        ]
+        : [
+            `$ cd ${project.path}`,
+            `$ ./scripts/${event.script}`,
+            '→ uploading voice context packet...',
+            '→ binding mock PC runner...',
+            '✓ script uploaded and queued',
+        ];
+
+    return `
+        <div class="relay-terminal-header">
+            <span><i class="fas fa-terminal"></i> live pc terminal</span>
+            <small>${isFeedback ? 'feedback queued' : 'script queued'}</small>
+        </div>
+        <div class="relay-terminal-command">
+            <strong>${isFeedback ? 'Nexus feedback relay' : 'Nexus script runner'}</strong>
+            <em>${escapeHtml(event.command)}</em>
+        </div>
+        <div class="relay-terminal-lines">
+            ${lines.map((line, index) => {
+                const marker = line.startsWith('✓') ? '✓' : line.startsWith('→') ? '→' : '$';
+                const text = line.replace(/^[$→✓]\s?/, '');
+                return `<p style="--delay:${index * 90}ms"><span>${marker}</span>${escapeHtml(text)}</p>`;
+            }).join('')}
+            <p class="relay-cursor"><span>▌</span> awaiting next phone command</p>
+        </div>
     `;
 }
 

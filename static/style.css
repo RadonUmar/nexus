@@ -370,10 +370,130 @@ body {
     margin: 14px 0;
 }
 
+.relay-terminal {
+    position: relative;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border: 1px solid rgba(94, 234, 212, 0.24);
+    border-radius: 24px;
+    background:
+        linear-gradient(135deg, rgba(4, 8, 18, 0.96), rgba(8, 15, 32, 0.88)),
+        radial-gradient(circle at 14% 0%, rgba(94, 234, 212, 0.16), transparent 34%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 55px rgba(0, 0, 0, 0.32);
+    margin-bottom: 14px;
+    min-height: 210px;
+    padding: 15px;
+}
+
+.relay-terminal::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(transparent 0 50%, rgba(94, 234, 212, 0.035) 50% 100%);
+    background-size: 100% 8px;
+    opacity: 0.7;
+}
+
+.relay-terminal.active {
+    border-color: rgba(94, 234, 212, 0.58);
+    box-shadow: 0 0 42px rgba(94, 234, 212, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.relay-terminal.event-pulse {
+    animation: relayPulse 1.4s ease-out;
+}
+
+.relay-terminal-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.relay-terminal-header span {
+    color: #a7f3d0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.relay-terminal-header small {
+    color: #5eead4;
+    background: rgba(94, 234, 212, 0.11);
+    border: 1px solid rgba(94, 234, 212, 0.2);
+    border-radius: 999px;
+    font-size: 11px;
+    padding: 5px 9px;
+}
+
+.relay-terminal-command {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.relay-terminal-command strong {
+    color: white;
+    font-size: 14px;
+}
+
+.relay-terminal-command em {
+    color: rgba(226, 232, 240, 0.62);
+    font-size: 12px;
+    font-style: normal;
+}
+
+.relay-terminal-lines {
+    position: relative;
+    display: grid;
+    gap: 6px;
+    font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+}
+
+.relay-terminal-lines p {
+    color: rgba(226, 232, 240, 0.9);
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 0;
+    opacity: 0;
+    transform: translateY(4px);
+    animation: relayLineIn 360ms ease-out forwards;
+    animation-delay: var(--delay, 0ms);
+}
+
+.relay-terminal-lines span {
+    color: #5eead4;
+    display: inline-block;
+    margin-right: 9px;
+    min-width: 12px;
+}
+
+.relay-terminal-lines .relay-cursor {
+    color: rgba(226, 232, 240, 0.62);
+    animation-delay: 520ms;
+}
+
+.relay-terminal-lines .relay-cursor span {
+    animation: relayBlink 1s step-end infinite;
+}
+
 .relay-grid {
     display: grid;
+    flex: 1 1 auto;
     grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.95fr);
     gap: 14px;
+    min-height: 0;
 }
 
 .relay-grid h3 {
@@ -513,6 +633,30 @@ body {
 .relay-empty i {
     color: #5eead4;
     font-size: 28px;
+}
+
+@keyframes relayPulse {
+    0% {
+        transform: scale(0.99);
+        filter: brightness(1.45);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+@keyframes relayLineIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes relayBlink {
+    50% {
+        opacity: 0;
+    }
 }
 
 /* macOS Dock */
