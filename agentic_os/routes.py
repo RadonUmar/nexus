@@ -8,6 +8,7 @@ from .email import router as email_router
 from .files_routes import router as files_router
 from .hyperspell_routes import router as hyperspell_router
 from .pages import router as pages_router
+from .phone_relay import router as phone_relay_router
 from .slideshow import router as slideshow_router
 from .voice import router as voice_router
 
@@ -21,6 +22,7 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(browser_router)
     app.include_router(voice_router)
     app.include_router(slideshow_router)
+    app.include_router(phone_relay_router)
 
     @app.get("/health")
     async def health_check():

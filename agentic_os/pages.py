@@ -28,3 +28,10 @@ async def voice_chat_page(request: Request):
     if _templates is None:
         raise RuntimeError("Templates not initialized")
     return _templates.TemplateResponse("voice_chat.html", {"request": request})
+
+
+@router.get("/phone", response_class=HTMLResponse)
+async def phone_page(request: Request):
+    if _templates is None:
+        raise RuntimeError("Templates not initialized")
+    return _templates.TemplateResponse("phone.html", {"request": request})

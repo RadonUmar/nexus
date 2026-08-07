@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Nexus Remote</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1f2937;
+    --border: #30363d;
+    --accent: #3b82f6;
+    --accent-dim: #1d4ed8;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  header {
+    padding: 16px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+
+  nav {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  nav button {
+    flex: 1;
+    padding: 12px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  nav button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab { display: none; flex-direction: column; flex: 1; padding: 16px; gap: 12px; overflow-y: auto; }
+  .tab.active { display: flex; }
+
+  /* Chat */
+  #chat-log {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 0;
+    min-height: 200px;
+    max-height: 55dvh;
+  }
+  .msg {
+    max-width: 88%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant { align-self: flex-start; background: var(--surface2); border-bottom-left-radius: 4px; }
+  .msg.error { align-self: flex-start; background: #7f1d1d; color: #fca5a5; border-bottom-left-radius: 4px; }
+  .msg .action-badge {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: rgba(255,255,255,.15);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  textarea {
+    flex: 1;
+    resize: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 15px;
+    padding: 12px 14px;
+    font-family: var(--font);
+    line-height: 1.4;
+    max-height: 120px;
+    overflow-y: auto;
+    outline: none;
+    transition: border-color .15s;
+  }
+  textarea:focus { border-color: var(--accent); }
+
+  .send-btn {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 18px;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  .send-btn:active { background: var(--accent-dim); }
+  .send-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Claude terminal */
+  #claude-output {
+    flex: 1;
+    min-height: 200px;
+    max-height: 55dvh;
+    overflow-y: auto;
+    background: #000;
+    border-radius: var(--radius);
+    padding: 12px;
+    font-family: "SFMono-Regular", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #d4d4d4;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #claude-output .ln-start { color: var(--yellow); }
+  #claude-output .ln-done  { color: var(--green); }
+  #claude-output .ln-err   { color: var(--red); }
+
+  /* Files */
+  .file-list { display: flex; flex-direction: column; gap: 8px; }
+  .file-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .file-icon { font-size: 20px; flex-shrink: 0; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .dl-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .dl-all-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+  }
+  .empty { text-align: center; color: var(--text-dim); padding: 32px; font-size: 14px; }
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="dot" id="status-dot"></div>
+  <h1>Nexus Remote</h1>
+</header>
+
+<nav>
+  <button class="active" onclick="switchTab('chat', this)">Chat</button>
+  <button onclick="switchTab('claude', this)">Claude</button>
+  <button onclick="switchTab('files', this)" id="files-tab-btn">Files</button>
+</nav>
+
+<!-- ===== CHAT TAB ===== -->
+<div class="tab active" id="tab-chat">
+  <div id="chat-log"></div>
+  <div class="input-row">
+    <textarea id="chat-input" rows="1" placeholder="Tell Nexus to do something…"
+      onInput="autoResize(this)" onkeydown="chatKeydown(event)"></textarea>
+    <button class="send-btn" id="chat-send" onclick="sendChat()">&#8593;</button>
+  </div>
+</div>
+
+<!-- ===== CLAUDE TAB ===== -->
+<div class="tab" id="tab-claude">
+  <textarea id="claude-input" rows="4" placeholder="Enter a prompt to run directly through the Claude CLI…"></textarea>
+  <button class="send-btn" id="claude-send" onclick="runClaude()"
+    style="width:100%;border-radius:var(--radius);font-size:14px;font-weight:600;gap:6px;height:44px">
+    ▶ Run with Claude
+  </button>
+  <div id="claude-output" style="display:none"></div>
+</div>
+
+<!-- ===== FILES TAB ===== -->
+<div class="tab" id="tab-files">
+  <a class="dl-all-btn" href="/phone/download-all" download="agentic_os_files.zip">
+    ⬇ Download everything as ZIP
+  </a>
+  <div id="file-list-container" class="file-list">
+    <div class="empty"><span class="spinner"></span> Loading files…</div>
+  </div>
+</div>
+
+<script>
+// ── utilities ────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'files') loadFiles();
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = { md: '📝', txt: '📄', json: '🔧', csv: '📊', html: '🌐',
+                 py: '🐍', js: '📜', png: '🖼', jpg: '🖼', jpeg: '🖼',
+                 gif: '🖼', pdf: '📕', zip: '🗜' };
+  return map[ext] || '📁';
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function fmtDate(ts) {
+  return new Date(ts * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// ── chat ─────────────────────────────────────────────────────────────────────
+const chatLog = document.getElementById('chat-log');
+let chatBusy = false;
+
+function appendMsg(role, text, action) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  el.textContent = text;
+  if (action) {
+    const badge = document.createElement('div');
+    badge.className = 'action-badge';
+    badge.textContent = '⚡ ' + action;
+    el.appendChild(badge);
+  }
+  chatLog.appendChild(el);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+async function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const msg = inp.value.trim();
+  if (!msg || chatBusy) return;
+  chatBusy = true;
+  document.getElementById('chat-send').disabled = true;
+
+  appendMsg('user', msg);
+  inp.value = '';
+  autoResize(inp);
+
+  const thinking = appendMsg('assistant', '…');
+
+  try {
+    const res = await fetch('/phone/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await res.json();
+    thinking.remove();
+    if (data.response) appendMsg('assistant', data.response, data.action || null);
+    else appendMsg('error', 'No response from server.');
+  } catch(e) {
+    thinking.remove();
+    appendMsg('error', 'Network error: ' + e.message);
+  } finally {
+    chatBusy = false;
+    document.getElementById('chat-send').disabled = false;
+  }
+}
+
+// ── claude runner ─────────────────────────────────────────────────────────────
+async function runClaude() {
+  const prompt = document.getElementById('claude-input').value.trim();
+  if (!prompt) return;
+
+  const out = document.getElementById('claude-output');
+  const btn = document.getElementById('claude-send');
+  out.style.display = 'block';
+  out.innerHTML = '';
+  btn.disabled = true;
+
+  const appendLine = (text, cls) => {
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = text;
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+  };
+
+  appendLine('▶ Running Claude…', 'ln-start');
+
+  try {
+    const res = await fetch('/phone/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith('data:')) continue;
+        try {
+          const evt = JSON.parse(part.slice(5).trim());
+          if (evt.type === 'output') appendLine(evt.line);
+          else if (evt.type === 'done') appendLine('✔ Done (exit ' + evt.returncode + ')', 'ln-done');
+          else if (evt.type === 'error') appendLine('✖ ' + evt.message, 'ln-err');
+        } catch(_) {}
+      }
+    }
+  } catch(e) {
+    appendLine('✖ Network error: ' + e.message, 'ln-err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── files ─────────────────────────────────────────────────────────────────────
+async function loadFiles() {
+  const container = document.getElementById('file-list-container');
+  container.innerHTML = '<div class="empty"><span class="spinner"></span> Loading…</div>';
+  try {
+    const res = await fetch('/phone/files');
+    const data = await res.json();
+    if (!data.files.length) {
+      container.innerHTML = '<div class="empty">No files yet. Run a command to create some.</div>';
+      return;
+    }
+    container.innerHTML = data.files.map(f => `
+      <div class="file-item">
+        <span class="file-icon">${fileIcon(f.name)}</span>
+        <div class="file-info">
+          <div class="file-name">${f.name}</div>
+          <div class="file-meta">${f.path} · ${fmtSize(f.size)} · ${fmtDate(f.modified)}</div>
+        </div>
+        <a class="dl-btn" href="${f.download_url}" download="${f.name}">⬇</a>
+      </div>
+    `).join('');
+  } catch(e) {
+    container.innerHTML = '<div class="empty">Error loading files: ' + e.message + '</div>';
+  }
+}
+</script>
+</body>
+</html>
