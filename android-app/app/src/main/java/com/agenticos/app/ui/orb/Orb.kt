@@ -13,23 +13,30 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PointMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.agenticos.app.ui.theme.AgenticBlue
+import com.agenticos.app.ui.theme.AgenticCyan
 import com.agenticos.app.ui.theme.AgenticGreen
 import com.agenticos.app.ui.theme.AgenticViolet
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Layered plasma-style orb rendered on a Compose Canvas: a slow outer rotation of
- * violet/cyan swirl arcs, a pulsing blue/violet radial core, and a faint particle ring.
- * State drives pulse speed, rotation speed, and a color blend toward green on Done.
+ * Siri-style orb: a few softly blurred color blobs drifting and breathing inside
+ * a circular mask, blended additively so they melt into each other like a lava lamp,
+ * topped with a faint glassy sheen. No hard edges, rings, or particles — the blur
+ * uses BlurredEdgeTreatment.Unbounded so the glow fades to true transparency instead
+ * of cutting off at a visible square, which is what made the previous version look
+ * like a mismatched box against the background.
  *
  * Swap for a Lottie composition later without touching call sites (see README).
  */
@@ -37,112 +44,117 @@ import kotlin.math.sin
 fun Orb(state: OrbState, modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "orb")
 
-    val pulseMs = when (state) {
-        OrbState.Idle -> 3400
-        OrbState.Listening -> 1100
-        OrbState.Thinking -> 700
-        OrbState.Working -> 850
-        OrbState.Done -> 1600
+    val speedMs = when (state) {
+        OrbState.Idle -> 5200
+        OrbState.Listening -> 2600
+        OrbState.Thinking -> 1300
+        OrbState.Working -> 1600
+        OrbState.Done -> 3600
     }
-    val rotateMs = when (state) {
-        OrbState.Idle -> 14000
-        OrbState.Listening -> 6000
-        OrbState.Thinking -> 2600
-        OrbState.Working -> 3200
-        OrbState.Done -> 9000
+    val pulseMs = when (state) {
+        OrbState.Idle -> 2600
+        OrbState.Listening -> 1400
+        OrbState.Thinking -> 800
+        OrbState.Working -> 950
+        OrbState.Done -> 1800
     }
 
-    val pulse by transition.animateFloat(
-        initialValue = 0.82f,
+    val drift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(durationMillis = speedMs, easing = LinearEasing)),
+        label = "orb-drift",
+    )
+    val breathe by transition.animateFloat(
+        initialValue = 0.9f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = pulseMs, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "orb-pulse",
-    )
-    val rotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = rotateMs, easing = LinearEasing),
-        ),
-        label = "orb-rotation",
+        label = "orb-breathe",
     )
 
-    val coreColor by animateColorAsState(
+    val primary by animateColorAsState(
         targetValue = if (state == OrbState.Done) AgenticGreen else AgenticBlue,
-        animationSpec = tween(400),
-        label = "orb-core-color",
+        animationSpec = tween(450),
+        label = "orb-primary",
     )
-    val accentColor = if (state == OrbState.Done) AgenticGreen else AgenticViolet
+    val secondary = if (state == OrbState.Done) AgenticGreen else AgenticViolet
+    val tertiary = if (state == OrbState.Done) AgenticGreen else AgenticCyan
 
-    Box(modifier = modifier.size(160.dp)) {
-        Canvas(modifier = Modifier.size(160.dp)) {
-            val outerRadius = size.minDimension / 2f * pulse
+    val size = 132.dp
 
-            // Outer glow halo
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        coreColor.copy(alpha = 0.35f),
-                        accentColor.copy(alpha = 0.12f),
-                        Color.Transparent,
-                    ),
-                    center = center,
-                    radius = outerRadius * 2f,
-                ),
-                radius = outerRadius * 2f,
-                center = center,
-            )
+    Box(modifier = modifier.size(size)) {
+        // Blob layer — blurred, unbounded edge treatment so it fades to nothing
+        // rather than clipping to a visible rectangle.
+        Canvas(
+            modifier = Modifier
+                .size(size)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .blur(radius = 16.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded),
+        ) {
+            val r = this.size.minDimension / 2f * breathe
 
-            // Rotating swirl arcs (plasma feel)
-            rotate(degrees = rotation, pivot = center) {
-                for (i in 0 until 3) {
-                    val angleOffset = i * 120f
-                    val armRadius = outerRadius * (0.55f + i * 0.12f)
-                    val points = mutableListOf<Offset>()
-                    for (deg in 0..180 step 6) {
-                        val rad = Math.toRadians((deg + angleOffset).toDouble())
-                        points.add(
-                            center + Offset(
-                                (cos(rad) * armRadius).toFloat(),
-                                (sin(rad) * armRadius * 0.6f).toFloat(),
-                            ),
-                        )
-                    }
-                    drawPoints(
-                        points = points,
-                        pointMode = PointMode.Polygon,
-                        color = accentColor.copy(alpha = 0.28f - i * 0.06f),
-                        strokeWidth = 2.5f,
-                    )
-                }
+            fun blobCenter(angleDeg: Float, orbitRadius: Float): Offset {
+                val rad = Math.toRadians(angleDeg.toDouble())
+                return center + Offset((cos(rad) * orbitRadius).toFloat(), (sin(rad) * orbitRadius).toFloat())
             }
 
-            // Core sphere with layered gradient for depth
+            // Circular mask so blobs never spill into a square silhouette.
+            drawCircle(color = Color.Black, radius = r, center = center, blendMode = BlendMode.Clear)
+
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.9f),
-                        coreColor.copy(alpha = 0.95f),
-                        coreColor.copy(alpha = 0.55f),
-                        accentColor.copy(alpha = 0.25f),
-                        Color.Transparent,
-                    ),
-                    center = center - Offset(outerRadius * 0.15f, outerRadius * 0.15f),
-                    radius = outerRadius * 1.05f,
+                    colors = listOf(primary.copy(alpha = 0.95f), Color.Transparent),
+                    center = blobCenter(drift, r * 0.32f),
+                    radius = r * 0.95f,
                 ),
-                radius = outerRadius * 0.62f,
-                center = center,
+                radius = r * 0.95f,
+                center = blobCenter(drift, r * 0.32f),
+                blendMode = BlendMode.Plus,
             )
-
-            // Thin bright rim
             drawCircle(
-                color = coreColor.copy(alpha = 0.5f),
-                radius = outerRadius * 0.62f,
+                brush = Brush.radialGradient(
+                    colors = listOf(secondary.copy(alpha = 0.8f), Color.Transparent),
+                    center = blobCenter(drift * 1.4f + 140f, r * 0.34f),
+                    radius = r * 0.85f,
+                ),
+                radius = r * 0.85f,
+                center = blobCenter(drift * 1.4f + 140f, r * 0.34f),
+                blendMode = BlendMode.Plus,
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(tertiary.copy(alpha = 0.7f), Color.Transparent),
+                    center = blobCenter(-drift * 0.8f + 260f, r * 0.3f),
+                    radius = r * 0.75f,
+                ),
+                radius = r * 0.75f,
+                center = blobCenter(-drift * 0.8f + 260f, r * 0.3f),
+                blendMode = BlendMode.Plus,
+            )
+        }
+
+        // Sheen layer — soft glassy highlight + a whisper-thin rim, unblurred and sharp.
+        Canvas(modifier = Modifier.size(size)) {
+            val r = this.size.minDimension / 2f * breathe
+            val highlightOffset = Offset(r * 0.28f, r * 0.34f)
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.32f), Color.Transparent),
+                    center = center - highlightOffset,
+                    radius = r * 0.5f,
+                ),
+                radius = r * 0.5f,
+                center = center - highlightOffset,
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.14f),
+                radius = r,
                 center = center,
-                style = Stroke(width = 1.5f),
+                style = Stroke(width = 1.dp.toPx()),
             )
         }
     }

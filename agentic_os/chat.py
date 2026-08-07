@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from .clients import openai_client
+from .clients import anthropic_client
 from .email import send_email
 from .files import (
     create_file,
@@ -117,6 +117,14 @@ def _is_slideshow_request(user_message: str) -> bool:
     return any(re.search(keyword.replace("*", ".*"), user_lower) for keyword in slideshow_keywords)
 
 
+def _extract_json(raw_response: str) -> str:
+    stripped = raw_response.strip()
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```[a-zA-Z]*\n?", "", stripped)
+        stripped = re.sub(r"```\s*$", "", stripped)
+    return stripped.strip()
+
+
 def _validate_response(response_dict: Dict[str, Any]):
     if not isinstance(response_dict, dict):
         return False, "Response is not a dictionary"
@@ -221,33 +229,37 @@ async def process_chat_message(user_message: str, session_id: str, skip_streamin
 
         formatted_hyperspell_context = format_hyperspell_context(hyperspell_context_memories)
 
-        messages = [{"role": "system", "content": system_prompt}]
+        system_blocks = [system_prompt]
         if formatted_hyperspell_context:
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        "Context retrieved from Hyperspell "
-                        f"(sources: {', '.join(hyperspell_sources)}):\n"
-                        f"{formatted_hyperspell_context}"
-                    ),
-                }
+            system_blocks.append(
+                "Context retrieved from Hyperspell "
+                f"(sources: {', '.join(hyperspell_sources)}):\n"
+                f"{formatted_hyperspell_context}"
             )
-        messages.extend(history_messages)
+        system_blocks.append(
+            "Respond with ONLY the raw JSON object described above — no markdown code "
+            "fences, no commentary before or after it."
+        )
+        system_prompt_combined = "\n\n".join(system_blocks)
+
+        messages = list(history_messages)
         messages.append({"role": "user", "content": user_message})
 
         for attempt in range(1, max_retries + 1):
             try:
                 logger.info("API Call Attempt %s/%s", attempt, max_retries)
 
-                completion = openai_client.chat.completions.create(
-                    model="gpt-4.1-2025-04-14",
-                    messages=messages,
+                completion = anthropic_client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=1024,
                     temperature=0.7,
-                    response_format={"type": "json_object"},
+                    system=system_prompt_combined,
+                    messages=messages,
                 )
 
-                raw_response = completion.choices[0].message.content
+                raw_response = "".join(
+                    block.text for block in completion.content if block.type == "text"
+                ).strip()
 
                 logger.info("=" * 80)
                 logger.info("LLM REPLY (Attempt %s):", attempt)
@@ -256,7 +268,7 @@ async def process_chat_message(user_message: str, session_id: str, skip_streamin
                 logger.info("=" * 80)
 
                 try:
-                    llm_response = json.loads(raw_response)
+                    llm_response = json.loads(_extract_json(raw_response))
                 except json.JSONDecodeError as exc:
                     error_msg = f"Invalid JSON on attempt {attempt}: {str(exc)}"
                     logger.warning(error_msg)
@@ -716,7 +728,7 @@ Be precise with coordinates - they should match pixel positions in the 1280x720 
     except json.JSONDecodeError as exc:
         return {"response": f"I encountered an error parsing the response. Please try again. Error: {str(exc)}", "action": None, "data": None}
     except Exception as exc:
-        return {"response": f"I encountered an error: {str(exc)}. Please make sure your OpenAI API key is valid.", "action": None, "data": None}
+        return {"response": f"I encountered an error: {str(exc)}. Please make sure your Anthropic API key is valid.", "action": None, "data": None}
 
 
 @router.post("/api/chat")

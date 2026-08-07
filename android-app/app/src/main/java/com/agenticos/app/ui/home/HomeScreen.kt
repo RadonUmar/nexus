@@ -3,7 +3,9 @@ package com.agenticos.app.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircleOutline
 import androidx.compose.material.icons.outlined.MailOutline
@@ -30,10 +33,13 @@ import androidx.compose.material.icons.outlined.Message
 import androidx.compose.material.icons.outlined.Navigation
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,6 +50,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.agenticos.app.ui.home.cards.EmailPreviewCard
+import com.agenticos.app.ui.home.cards.MockEmail
 import com.agenticos.app.ui.orb.Orb
 import com.agenticos.app.ui.orb.OrbState
 import com.agenticos.app.ui.theme.AgenticBlack
@@ -66,8 +74,20 @@ private val CORE_FUNCTIONS = listOf(
     CoreFunction("Mail", Icons.Outlined.MailOutline),
 )
 
+private val MOCK_INBOX = listOf(
+    MockEmail(
+        sender = "Sarah Chen",
+        subject = "Re: Q3 roadmap sync",
+        preview = "Sounds good — let's lock in Thursday at 2pm. I'll send a calendar invite once...",
+        body = "Sounds good — let's lock in Thursday at 2pm. I'll send a calendar invite once I confirm the room. Can you loop in the design lead before then so we're not blindsided by scope questions again?",
+        timestamp = "9:41 AM",
+    ),
+)
+
 @Composable
-fun HomeScreen(orbState: OrbState) {
+fun HomeScreen(orbState: OrbState, onOrbTap: () -> Unit = {}) {
+    var openMail by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -98,7 +118,7 @@ fun HomeScreen(orbState: OrbState) {
                     enter = fadeIn(tween(400, delayMillis = index * 60)) +
                         slideInVertically(tween(400, delayMillis = index * 60)) { 24 },
                 ) {
-                    FunctionRow(function = function)
+                    FunctionRow(function = function, onClick = { if (function.label == "Mail") openMail = true })
                 }
             }
         }
@@ -110,7 +130,14 @@ fun HomeScreen(orbState: OrbState) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Bottom,
         ) {
-            Orb(state = orbState)
+            Orb(
+                state = orbState,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onOrbTap,
+                ),
+            )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = orbState.label(),
@@ -119,6 +146,14 @@ fun HomeScreen(orbState: OrbState) {
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 1.4.sp,
             )
+        }
+
+        AnimatedVisibility(
+            visible = openMail,
+            enter = fadeIn(tween(250)) + slideInVertically(tween(300)) { it / 4 },
+            exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 4 },
+        ) {
+            EmailPreviewCard(emails = MOCK_INBOX, onClose = { openMail = false })
         }
     }
 }
@@ -132,7 +167,7 @@ private fun GreetingHeader(orbState: OrbState) {
     ) {
         Column {
             Text(
-                text = "Agentic OS",
+                text = "nexus",
                 color = AgenticTextPrimary,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Light,
@@ -160,7 +195,7 @@ private fun StatusDot(orbState: OrbState) {
 }
 
 @Composable
-private fun FunctionRow(function: CoreFunction) {
+private fun FunctionRow(function: CoreFunction, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
@@ -169,7 +204,7 @@ private fun FunctionRow(function: CoreFunction) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(if (isPressed) AgenticSurface else Color.Transparent)
-            .clickable(interactionSource = interactionSource, indication = null) {}
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(vertical = 16.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

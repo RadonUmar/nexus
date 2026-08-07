@@ -3,6 +3,8 @@ package com.agenticos.app.agent
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -32,7 +34,7 @@ class AgentClient(
     private val client = OkHttpClient()
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
-    suspend fun sendMessage(message: String): ChatResponse {
+    suspend fun sendMessage(message: String): ChatResponse = withContext(Dispatchers.IO) {
         val requestAdapter = moshi.adapter(ChatRequest::class.java)
         val responseAdapter = moshi.adapter(ChatResponse::class.java)
 
@@ -46,6 +48,6 @@ class AgentClient(
 
         val response = client.newCall(request).execute()
         val responseBody = response.body?.string().orEmpty()
-        return responseAdapter.fromJson(responseBody) ?: ChatResponse()
+        responseAdapter.fromJson(responseBody) ?: ChatResponse()
     }
 }

@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 @dataclass(frozen=True)
 class Settings:
+    anthropic_api_key: str
     openai_api_key: str
     hyperspell_api_key: str
     hyperspell_enabled: bool
@@ -39,7 +40,8 @@ def _require_env(name: str) -> str:
 
 
 def load_settings() -> Settings:
-    openai_api_key = _require_env("OPENAI_API_KEY")
+    anthropic_api_key = _require_env("ANTHROPIC_API_KEY")
+    openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
     hyperspell_api_key = os.getenv("HYPERSPELL_API_KEY", "").strip()
 
     base_dir = REPO_ROOT
@@ -54,6 +56,7 @@ def load_settings() -> Settings:
     templates_dir.mkdir(exist_ok=True)
 
     return Settings(
+        anthropic_api_key=anthropic_api_key,
         openai_api_key=openai_api_key,
         hyperspell_api_key=hyperspell_api_key,
         hyperspell_enabled=bool(hyperspell_api_key),
