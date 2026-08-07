@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .clients import anthropic_client
+from .demo import DemoCommandRequest, is_demo_project_command, record_demo_command
 from .email import send_email
 from .files import (
     create_file,
@@ -149,6 +150,17 @@ def _validate_response(response_dict: Dict[str, Any]):
 async def process_chat_message(user_message: str, session_id: str, skip_streaming: bool = False) -> Dict[str, Any]:
     if not user_message:
         return {"response": "Please enter a command.", "action": None, "data": None}
+
+    if is_demo_project_command(user_message):
+        event = record_demo_command(
+            DemoCommandRequest(command=user_message, source="phone" if session_id == "default" else "dashboard")
+        )
+        add_to_conversation_history(session_id, user_message, "Script uploaded." if event["kind"] == "script" else "Feedback queued.")
+        return {
+            "response": "Script uploaded." if event["kind"] == "script" else "Feedback queued.",
+            "action": None,
+            "data": {"demo_event": event},
+        }
 
     recent_history = get_conversation_history(session_id, max_pairs=2)
 

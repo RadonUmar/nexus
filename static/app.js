@@ -257,6 +257,46 @@ You can type anything here...</textarea>
             </div>
         `
     },
+    code_dashboard: {
+        title: 'Project Relay',
+        icon: 'fa-code-branch',
+        color: 'text-cyan-400',
+        content: `
+            <div class="project-relay h-full flex flex-col">
+                <div class="relay-hero">
+                    <div>
+                        <p class="relay-kicker">Phone → Nexus → PC</p>
+                        <h2>Project Relay</h2>
+                        <p>Mock command center for scripts, project dirs, and voice feedback.</p>
+                    </div>
+                    <div class="relay-orb"><i class="fas fa-sparkles"></i></div>
+                </div>
+                <div class="relay-toolbar">
+                    <button class="toolbar-btn" onclick="refreshProjectRelay()" title="Refresh">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button class="toolbar-btn" onclick="mockProjectRelayCommand('run the preview script on the phone voice shell project')">
+                        <i class="fas fa-play"></i> Mock Run
+                    </button>
+                    <button class="toolbar-btn" onclick="mockProjectRelayCommand('give feedback on the mobile demo UI polish')">
+                        <i class="fas fa-comment-dots"></i> Mock Feedback
+                    </button>
+                    <div class="flex-1"></div>
+                    <div id="project-relay-status" class="text-sm text-text-secondary">Syncing...</div>
+                </div>
+                <div class="relay-grid">
+                    <section>
+                        <h3>Projects</h3>
+                        <div id="project-relay-projects" class="relay-project-list"></div>
+                    </section>
+                    <section>
+                        <h3>Directed Activity</h3>
+                        <div id="project-relay-events" class="relay-event-list"></div>
+                    </section>
+                </div>
+            </div>
+        `
+    },
     sync: {
         title: 'Sync',
         icon: 'fa-sync',
@@ -342,6 +382,7 @@ You can type anything here...</textarea>
     }
 };
 
+appTemplates.code = appTemplates.code_dashboard;
 
 // Set sidebar width CSS variable
 function updateSidebarWidth() {
@@ -457,6 +498,13 @@ function createWindow(appName = 'default', title = null, position = null) {
                 syncLoadIntegrations();
             }
         }, 100);
+    } else if (appName === 'code_dashboard') {
+        setTimeout(() => {
+            if (typeof refreshProjectRelay === 'function') {
+                refreshProjectRelay();
+                ensureProjectRelayPolling();
+            }
+        }, 100);
     } else if (appName === 'scheduled_processes') {
         // Initialize scheduled processes app
         setTimeout(async () => {
@@ -554,7 +602,7 @@ function initDesktopIcons() {
     const existingIcons = desktopFiles.querySelectorAll('.desktop-icon[data-app]');
     existingIcons.forEach(icon => icon.remove());
     
-    const appsToShow = ['file_manager', 'terminal', 'notepad', 'mailbox', 'browser', 'slideshow', 'sync', 'scheduled_processes'];
+    const appsToShow = ['file_manager', 'terminal', 'notepad', 'mailbox', 'browser', 'slideshow', 'code_dashboard', 'sync', 'scheduled_processes'];
     
     // Calculate positions - distribute icons across desktop in a grid
     const iconSize = 90;
@@ -769,6 +817,15 @@ chatForm.addEventListener('submit', async (e) => {
         
         // Add assistant message
         addChatMessage(data.response, 'assistant');
+
+        if (data.data && data.data.demo_event) {
+            const existingRelayWindow = Array.from(document.querySelectorAll('.window'))
+                .find(w => w.querySelector('.project-relay'));
+            if (!existingRelayWindow) {
+                createWindow('code_dashboard', 'Project Relay');
+            }
+            setTimeout(() => refreshProjectRelay(), 250);
+        }
         
         // Handle actions
         if (data.action === 'open_app') {
@@ -2842,6 +2899,119 @@ async function syncDisconnectIntegration(integrationId) {
 }
 
 // ============================================
+// Project Relay Dashboard
+// ============================================
+let projectRelayPoller = null;
+
+function ensureProjectRelayPolling() {
+    if (projectRelayPoller) return;
+    projectRelayPoller = setInterval(() => {
+        const relayWindow = Array.from(document.querySelectorAll('.window'))
+            .find(w => w.querySelector('.project-relay'));
+        if (relayWindow) {
+            refreshProjectRelay({ quiet: true });
+        }
+    }, 2500);
+}
+
+async function refreshProjectRelay(options = {}) {
+    const status = document.getElementById('project-relay-status');
+    const projectsContainer = document.getElementById('project-relay-projects');
+    const eventsContainer = document.getElementById('project-relay-events');
+
+    if (!projectsContainer || !eventsContainer) return;
+    if (status && !options.quiet) status.textContent = 'Syncing...';
+
+    try {
+        const response = await fetch('/api/demo/projects');
+        const data = await response.json();
+
+        projectsContainer.innerHTML = data.projects.map(project => renderRelayProject(project, data.active_project)).join('');
+        eventsContainer.innerHTML = data.events.length
+            ? data.events.map(renderRelayEvent).join('')
+            : renderRelayEmptyState();
+
+        if (status) {
+            status.textContent = data.last_updated
+                ? `Updated ${new Date(data.last_updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                : 'Ready for phone commands';
+        }
+    } catch (error) {
+        console.error('Error refreshing project relay:', error);
+        if (status) status.textContent = 'Offline';
+    }
+}
+
+function renderRelayProject(project, activeProjectId) {
+    const activeClass = project.id === activeProjectId ? 'active' : '';
+    const dirs = project.dirs.map(dir => `<span><i class="fas fa-folder"></i>${dir}</span>`).join('');
+    const scripts = project.scripts.map(script => `<span><i class="fas fa-terminal"></i>${script}</span>`).join('');
+
+    return `
+        <article class="relay-project-card ${activeClass}">
+            <div class="relay-project-top">
+                <div>
+                    <h4>${escapeHtml(project.name)}</h4>
+                    <p>${escapeHtml(project.path)}</p>
+                </div>
+                <span class="relay-status">${escapeHtml(project.status)}</span>
+            </div>
+            <div class="relay-chip-row">${dirs}</div>
+            <div class="relay-script-row">${scripts}</div>
+        </article>
+    `;
+}
+
+function renderRelayEvent(event) {
+    const icon = event.kind === 'feedback' ? 'fa-comment-dots' : 'fa-play';
+    const title = event.kind === 'feedback' ? 'Feedback routed' : 'Script directed';
+    const detail = event.kind === 'feedback'
+        ? (event.feedback || event.command)
+        : `${event.script} → ${event.project}`;
+
+    return `
+        <article class="relay-event-card">
+            <div class="relay-event-icon"><i class="fas ${icon}"></i></div>
+            <div>
+                <div class="relay-event-title">
+                    <span>${title}</span>
+                    <small>${new Date(event.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small>
+                </div>
+                <p>${escapeHtml(detail)}</p>
+                <code>${escapeHtml(event.command)}</code>
+            </div>
+        </article>
+    `;
+}
+
+function renderRelayEmptyState() {
+    return `
+        <div class="relay-empty">
+            <i class="fas fa-satellite-dish"></i>
+            <p>Say “run this script on the project” from the phone.</p>
+        </div>
+    `;
+}
+
+async function mockProjectRelayCommand(command) {
+    await fetch('/api/demo/commands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, source: 'dashboard' })
+    });
+    refreshProjectRelay();
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+// ============================================
 // Keyboard navigation for slideshow
 // ============================================
 document.addEventListener('keydown', (e) => {
@@ -2856,4 +3026,3 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
-

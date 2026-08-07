@@ -109,6 +109,13 @@ class MainActivity : ComponentActivity() {
                                             destination = event.text.toDestination() ?: destination
                                             if (immediateMockOutcome != MockOutcome.None) {
                                                 assistantReply = immediateMockOutcome.successReply() ?: "Done."
+                                                if (immediateMockOutcome == MockOutcome.ScriptUploaded || immediateMockOutcome == MockOutcome.FeedbackQueued) {
+                                                    scope.launch {
+                                                        runCatching {
+                                                            agentClient.recordDemoCommand(event.text)
+                                                        }
+                                                    }
+                                                }
                                                 orbState = OrbState.Working
                                                 tts.speak(assistantReply)
                                                 orbState = OrbState.Done
@@ -180,7 +187,7 @@ class MainActivity : ComponentActivity() {
             listOf("navigate", "navigation", "map", "directions", "route").any(text::contains) -> AppDestination.Navigate
             listOf("search", "look up", "find", "research", "browser", "google").any(text::contains) -> AppDestination.Search
             listOf("task", "todo", "to do", "reminder").any(text::contains) -> AppDestination.Tasks
-            listOf("code", "script", "command", "terminal", "pc", "computer").any(text::contains) -> AppDestination.Code
+            listOf("code", "script", "command", "terminal", "pc", "computer", "project", "feedback").any(text::contains) -> AppDestination.Code
             else -> null
         }
     }
@@ -189,7 +196,8 @@ class MainActivity : ComponentActivity() {
         val text = lowercase()
         return when {
             listOf("send an email", "send email", "email sent", "send it", "compose email", "send a reply", "reply to sarah", "respond to sarah", "send sarah").any(text::contains) -> MockOutcome.EmailSent
-            listOf("run script", "run the deploy script", "send a command", "run a command", "upload script", "upload my computer code", "upload code", "script uploaded", "command to my pc").any(text::contains) -> MockOutcome.ScriptUploaded
+            listOf("give feedback", "project feedback", "leave feedback", "add feedback", "note on this project").any(text::contains) -> MockOutcome.FeedbackQueued
+            listOf("run script", "run this script", "run the script", "run the deploy script", "send a command", "run a command", "upload script", "upload my computer code", "upload code", "script uploaded", "command to my pc").any(text::contains) -> MockOutcome.ScriptUploaded
             else -> MockOutcome.None
         }
     }
@@ -197,6 +205,7 @@ class MainActivity : ComponentActivity() {
     private fun MockOutcome.successReply(): String? = when (this) {
         MockOutcome.EmailSent -> "Email sent."
         MockOutcome.ScriptUploaded -> "Script uploaded."
+        MockOutcome.FeedbackQueued -> "Feedback queued."
         MockOutcome.None -> null
     }
 

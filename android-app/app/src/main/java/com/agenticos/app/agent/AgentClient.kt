@@ -24,6 +24,13 @@ data class ChatResponse(
     val data: Map<String, Any?>? = null,
 )
 
+@JsonClass(generateAdapter = true)
+data class DemoCommandRequest(
+    val command: String,
+    val kind: String? = null,
+    val source: String = "phone",
+)
+
 /**
  * Thin client for the FastAPI backend's chat/action-dispatch endpoint.
  * Mirrors the JSON action-routing pattern already used in agentic_os/chat.py.
@@ -49,5 +56,18 @@ class AgentClient(
         val response = client.newCall(request).execute()
         val responseBody = response.body?.string().orEmpty()
         responseAdapter.fromJson(responseBody) ?: ChatResponse()
+    }
+
+    suspend fun recordDemoCommand(message: String, kind: String? = null) = withContext(Dispatchers.IO) {
+        val requestAdapter = moshi.adapter(DemoCommandRequest::class.java)
+        val body = requestAdapter.toJson(DemoCommandRequest(command = message, kind = kind))
+            .toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/demo/commands")
+            .post(body)
+            .build()
+
+        client.newCall(request).execute().close()
     }
 }

@@ -39,6 +39,39 @@ browser_contexts: Dict[str, Any] = {}
 browser_agents: Dict[str, Dict[str, Any]] = {}
 agent_task_registry: Dict[str, Any] = {}
 
+# Phone-to-PC demo dashboard state
+demo_project_state: Dict[str, Any] = {
+    "projects": [
+        {
+            "id": "mobile-demo",
+            "name": "phone voice shell",
+            "path": "/nexus/mobile-demo",
+            "status": "active",
+            "dirs": ["android-app/", "agentic_os/", "static/"],
+            "scripts": ["deploy_preview.sh", "run_backend.sh", "inspect_device.sh"],
+        },
+        {
+            "id": "web-dashboard",
+            "name": "web dashboard",
+            "path": "/projects/site-lab",
+            "status": "watching",
+            "dirs": ["templates/", "static/", "routes/"],
+            "scripts": ["sync_agent_events.sh", "preview_ui.sh"],
+        },
+        {
+            "id": "model-lab",
+            "name": "agent model lab",
+            "path": "/experiments/nexus-agent",
+            "status": "idle",
+            "dirs": ["prompts/", "evals/", "tools/"],
+            "scripts": ["score_responses.sh", "package_context.sh"],
+        },
+    ],
+    "events": [],
+    "active_project": "mobile-demo",
+    "last_updated": None,
+}
+
 
 PROCESSED_EMAILS_FILE: Path = settings.processed_emails_file
 

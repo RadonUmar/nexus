@@ -84,6 +84,7 @@ enum class MockOutcome {
     None,
     EmailSent,
     ScriptUploaded,
+    FeedbackQueued,
 }
 
 private data class CoreFunction(val destination: AppDestination)
@@ -471,39 +472,153 @@ private fun MessagesMockContent() {
 
 @Composable
 private fun CodeMockContent(mockOutcome: MockOutcome) {
+    val isCodeAction = mockOutcome == MockOutcome.ScriptUploaded || mockOutcome == MockOutcome.FeedbackQueued
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (mockOutcome == MockOutcome.ScriptUploaded) {
+        if (isCodeAction) {
             SuccessCard(
-                title = "script uploaded",
-                body = "deploy_phone_demo.sh is queued on your PC.",
+                title = if (mockOutcome == MockOutcome.FeedbackQueued) "feedback queued" else "script uploaded",
+                body = if (mockOutcome == MockOutcome.FeedbackQueued) {
+                    "Nexus attached your note to /nexus/mobile-demo."
+                } else {
+                    "Nexus routed deploy_preview.sh into /nexus/mobile-demo."
+                },
                 color = AgenticCyan,
             )
         }
         SectionMetricRow(
             items = listOf(
-                Metric("PC", "target"),
-                Metric(if (mockOutcome == MockOutcome.ScriptUploaded) "queued" else "ready", "status"),
-                Metric("ssh", "mock link"),
+                Metric("3", "projects"),
+                Metric(if (isCodeAction) "queued" else "ready", "agent"),
+                Metric("local", "pc bridge"),
             ),
         )
-        TerminalCard(
-            title = "deploy_phone_demo.sh",
-            lines = listOf(
-                "$ adb reverse tcp:8000 tcp:8000",
-                "$ gradle :app:assembleDebug",
-                "$ adb install -r app-debug.apk",
-                if (mockOutcome == MockOutcome.ScriptUploaded) "upload complete -> awaiting run approval" else "ready for voice command",
-            ),
+        ProjectCard(
+            path = "/nexus/mobile-demo",
+            name = "phone voice shell",
+            status = if (mockOutcome == MockOutcome.FeedbackQueued) "feedback queued" else if (mockOutcome == MockOutcome.ScriptUploaded) "command queued" else "active",
+            accent = AgenticCyan,
+            dirs = listOf("android-app/", "agentic_os/", "static/"),
+            scripts = listOf("deploy_preview.sh", "run_backend.sh", "inspect_device.sh"),
         )
-        TerminalCard(
-            title = "agent bridge",
-            lines = listOf(
-                "device: SM-S938U1",
-                "backend: 127.0.0.1:8000",
-                "mode: mock command relay",
-            ),
+        ProjectCard(
+            path = "/projects/site-lab",
+            name = "web dashboard",
+            status = "watching",
+            accent = AgenticViolet,
+            dirs = listOf("templates/", "static/", "routes/"),
+            scripts = listOf("sync_agent_events.sh", "preview_ui.sh"),
         )
-        CommandRow(commands = listOf("upload script", "run command", "show logs"))
+        AgentRelayCard(mockOutcome = mockOutcome)
+        CommandRow(commands = listOf("run project script", "give feedback", "show dirs"))
+    }
+}
+
+@Composable
+private fun ProjectCard(
+    path: String,
+    name: String,
+    status: String,
+    accent: Color,
+    dirs: List<String>,
+    scripts: List<String>,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(AgenticSurface)
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(accent.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("⌁", color = accent, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, color = AgenticTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(path, color = AgenticTextTertiary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            CommandPill(text = status, color = accent)
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text("directories", color = AgenticTextTertiary, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+            dirs.forEach { dir ->
+                FilePill(text = dir, color = AgenticBlue)
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("scripts", color = AgenticTextTertiary, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        scripts.forEach { script ->
+            ScriptRow(script = script, accent = accent)
+        }
+    }
+}
+
+@Composable
+private fun FilePill(text: String, color: Color) {
+    Text(
+        text = text,
+        color = AgenticTextPrimary,
+        fontSize = 11.sp,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 9.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun ScriptRow(script: String, accent: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("sh", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(script, color = AgenticTextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text("ready", color = AgenticTextTertiary, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun AgentRelayCard(mockOutcome: MockOutcome) {
+    val active = mockOutcome == MockOutcome.ScriptUploaded || mockOutcome == MockOutcome.FeedbackQueued
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF090A10))
+            .padding(16.dp),
+    ) {
+        Text("agent relay", color = AgenticCyan, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.height(10.dp))
+        Text("phone → backend dashboard → PC project", color = AgenticTextPrimary, fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            if (mockOutcome == MockOutcome.FeedbackQueued) {
+                "feedback note mirrored to the desktop relay"
+            } else if (active) {
+                "deploy_preview.sh queued with voice context"
+            } else {
+                "waiting for project command or feedback"
+            },
+            color = if (active) AgenticCyan else AgenticTextSecondary,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+        )
     }
 }
 
