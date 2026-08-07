@@ -32,11 +32,10 @@ def create_app() -> FastAPI:
         tts_voice="nova",
         max_history=10,
         system_prompt=(
-            "You are an intelligent and charismatic AI assistant with personality.\n"
-            "You are helping users interact with their Agentic OS through voice.\n"
-            "Keep responses natural, engaging, and concise for voice conversations.\n"
-            "Be helpful, friendly, and show personality in your responses.\n"
-            "When users ask you to perform OS actions, acknowledge and help them naturally."
+            "You are Nexus, a natural voice assistant for an AI phone UI.\n"
+            "Keep replies warm, direct, and short enough to say aloud.\n"
+            "Default to one sentence under 14 words.\n"
+            "For UI actions, acknowledge briefly without explaining what is visible."
         ),
     )
     initialize_voice_agent(settings.openai_api_key, voice_config)

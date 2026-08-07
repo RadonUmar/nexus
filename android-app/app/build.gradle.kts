@@ -15,10 +15,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Point this at your FastAPI backend. Use your machine's LAN IP
-        // (e.g. 192.168.1.42:8000) when testing against a physically
-        // connected S25, or a deployed HTTPS URL for a demo-day setup.
-        buildConfigField("String", "BACKEND_BASE_URL", "\"http://10.0.2.2:8000\"")
+        // Points at the phone's own localhost, which `adb reverse tcp:8000 tcp:8000`
+        // tunnels back to port 8000 on the dev machine over the USB cable. This works
+        // regardless of what Wi-Fi/tethered network either device is on, unlike a LAN
+        // IP. Swap for a deployed HTTPS URL for a demo-day setup.
+        buildConfigField("String", "BACKEND_BASE_URL", "\"http://127.0.0.1:8000\"")
     }
 
     buildFeatures {

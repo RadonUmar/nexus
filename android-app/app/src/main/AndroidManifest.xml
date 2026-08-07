@@ -6,6 +6,21 @@
     <!-- Used later for the "look at what's on screen" MediaProjection flow -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
+    <!--
+      Package visibility (Android 11+ / targetSdk 30+). Without these, the speech
+      recognizer and TTS engines live in other packages we can't see, so
+      SpeechRecognizer.isRecognitionAvailable() returns false and TextToSpeech
+      fails to bind to an engine. Required for the voice pipeline to work at all.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
