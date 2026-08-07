@@ -35,6 +35,43 @@
 
     <!-- Desktop -->
     <div id="desktop" class="absolute inset-0" style="top: 28px; bottom: 0;">
+        <section id="os-command-center" class="os-command-center">
+            <div class="os-command-hero">
+                <div>
+                    <p class="os-kicker">Nexus Live Surface</p>
+                    <h1>Phone-directed computer control</h1>
+                    <p>Voice commands from the phone materialize here as mock project actions, terminal runs, and feedback packets.</p>
+                </div>
+                <div class="os-ai-core">
+                    <i class="fas fa-sparkles"></i>
+                </div>
+            </div>
+            <div class="os-status-row">
+                <div><strong id="os-relay-state">listening</strong><span>phone bridge</span></div>
+                <div><strong id="os-relay-project-count">3</strong><span>projects indexed</span></div>
+                <div><strong id="os-relay-event-count">0</strong><span>voice actions</span></div>
+            </div>
+            <div id="os-relay-terminal" class="relay-terminal os-relay-terminal">
+                <div class="relay-terminal-header">
+                    <span><i class="fas fa-terminal"></i> live pc terminal</span>
+                    <small>waiting for phone command</small>
+                </div>
+                <div class="relay-terminal-lines">
+                    <p><span>$</span> nexus relay --watch phone</p>
+                    <p><span>→</span> listening for script or feedback intent...</p>
+                </div>
+            </div>
+            <div class="os-command-grid">
+                <section>
+                    <h3>Active Projects</h3>
+                    <div id="os-relay-projects" class="relay-project-list"></div>
+                </section>
+                <section>
+                    <h3>Recent Phone Actions</h3>
+                    <div id="os-relay-events" class="relay-event-list"></div>
+                </section>
+            </div>
+        </section>
         <!-- Desktop Files Container -->
         <div id="desktop-files" class="absolute inset-0"></div>
     </div>

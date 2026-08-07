@@ -38,6 +38,40 @@ def classify_demo_command(message: str) -> Dict[str, str]:
     return {"kind": "script", "script": "deploy_preview.sh"}
 
 
+def build_agent_run(message: str, kind: str, script: str, project_path: str) -> Dict[str, Any]:
+    text = message.lower()
+    wants_change = any(word in text for word in ["change", "rename", "update", "modify", "fix", "make it"])
+    wants_feedback = kind == "feedback"
+    target_file = "android-app/app/src/main/java/com/agenticos/app/ui/home/HomeScreen.kt"
+    if "backend" in text or "server" in text:
+        target_file = "agentic_os/app.py"
+    elif "website" in text or "web" in text or "dashboard" in text:
+        target_file = "static/app.js"
+    elif "name" in text or "title" in text:
+        target_file = "templates/index.html"
+
+    objective = "Apply voice feedback to the project UI." if wants_feedback else "Run and monitor the requested project script."
+    if wants_change:
+        objective = "Interpret the phone instruction and prepare a safe project patch."
+
+    return {
+        "agent": "Nexus Project Agent",
+        "mode": "mock-llm-run",
+        "objective": objective,
+        "target_file": target_file,
+        "project_path": project_path,
+        "script": script,
+        "summary": "Instruction received from phone. Building a plan, scanning files, and preparing a mock execution trace.",
+        "steps": [
+            {"label": "Parse voice instruction", "detail": f"Intent: {message}"},
+            {"label": "Retrieve project context", "detail": f"Indexing {project_path} and related dirs."},
+            {"label": "Draft agent plan", "detail": "LLM planner selects safe files, script, and mock output."},
+            {"label": "Execute mock command", "detail": f"Running {script} with captured voice context."},
+            {"label": "Report result", "detail": "Surface updated on web dashboard and phone UI."},
+        ],
+    }
+
+
 def record_demo_command(payload: DemoCommandRequest | Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(payload, dict):
         payload = DemoCommandRequest(**payload)
@@ -66,6 +100,7 @@ def record_demo_command(payload: DemoCommandRequest | Dict[str, Any]) -> Dict[st
         "feedback": feedback,
         "status": "queued",
     }
+    event["agent_run"] = build_agent_run(payload.command, kind, script, project["path"])
 
     state.demo_project_state["events"].insert(0, event)
     state.demo_project_state["events"] = state.demo_project_state["events"][:12]

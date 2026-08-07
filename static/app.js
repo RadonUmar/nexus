@@ -622,14 +622,14 @@ function initDesktopIcons() {
     const existingIcons = desktopFiles.querySelectorAll('.desktop-icon[data-app]');
     existingIcons.forEach(icon => icon.remove());
     
-    const appsToShow = ['file_manager', 'terminal', 'notepad', 'mailbox', 'browser', 'slideshow', 'code_dashboard', 'sync', 'scheduled_processes'];
+    const appsToShow = ['file_manager', 'terminal', 'notepad', 'mailbox', 'browser', 'slideshow', 'sync', 'scheduled_processes'];
     
     // Calculate positions - distribute icons across desktop in a grid
-    const iconSize = 90;
-    const spacing = 100;
-    const startX = 50;
-    const startY = 50;
-    const iconsPerRow = Math.floor((window.innerWidth - startX * 2) / spacing);
+    const iconSize = 82;
+    const spacing = 92;
+    const startX = 38;
+    const startY = 54;
+    const iconsPerRow = 2;
     
     appsToShow.forEach((appName, index) => {
         const app = appTemplates[appName];
@@ -685,10 +685,16 @@ function ensureDesktopIcons() {
 
 // Initialize on DOM ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', ensureDesktopIcons);
+    document.addEventListener('DOMContentLoaded', () => {
+        ensureDesktopIcons();
+        refreshOsCommandCenter();
+        ensureProjectRelayPolling();
+    });
 } else {
     // DOM already ready
     ensureDesktopIcons();
+    refreshOsCommandCenter();
+    ensureProjectRelayPolling();
 }
 
 // Re-initialize on window resize to reposition icons
@@ -839,17 +845,7 @@ chatForm.addEventListener('submit', async (e) => {
         addChatMessage(data.response, 'assistant');
 
         if (data.data && data.data.demo_event) {
-            const existingRelayWindow = Array.from(document.querySelectorAll('.window'))
-                .find(w => w.querySelector('.project-relay'));
-            if (existingRelayWindow) {
-                existingRelayWindow.style.width = '760px';
-                existingRelayWindow.style.height = '680px';
-                existingRelayWindow.style.top = '66px';
-                bringToFront(existingRelayWindow);
-            } else {
-                createWindow('code_dashboard', 'Project Relay');
-            }
-            setTimeout(() => refreshProjectRelay(), 250);
+            setTimeout(() => refreshOsCommandCenter(), 250);
         }
         
         // Handle actions
@@ -2928,6 +2924,7 @@ async function syncDisconnectIntegration(integrationId) {
 // ============================================
 let projectRelayPoller = null;
 let projectRelayLastEventId = null;
+let osRelayLastEventId = null;
 
 function ensureProjectRelayPolling() {
     if (projectRelayPoller) return;
@@ -2937,7 +2934,8 @@ function ensureProjectRelayPolling() {
         if (relayWindow) {
             refreshProjectRelay({ quiet: true });
         }
-    }, 2500);
+        refreshOsCommandCenter({ quiet: true });
+    }, 900);
 }
 
 async function refreshProjectRelay(options = {}) {
@@ -2983,6 +2981,45 @@ async function refreshProjectRelay(options = {}) {
     }
 }
 
+async function refreshOsCommandCenter(options = {}) {
+    const projectsContainer = document.getElementById('os-relay-projects');
+    const eventsContainer = document.getElementById('os-relay-events');
+    const terminal = document.getElementById('os-relay-terminal');
+    const bridgeState = document.getElementById('os-relay-state');
+    const projectCount = document.getElementById('os-relay-project-count');
+    const eventCount = document.getElementById('os-relay-event-count');
+
+    if (!projectsContainer || !eventsContainer || !terminal) return;
+
+    try {
+        const response = await fetch('/api/demo/projects');
+        const data = await response.json();
+        const latestEvent = data.events[0];
+
+        projectsContainer.innerHTML = data.projects.map(project => renderRelayProject(project, data.active_project)).join('');
+        eventsContainer.innerHTML = data.events.length
+            ? data.events.slice(0, 4).map(renderRelayEvent).join('')
+            : renderRelayEmptyState();
+        terminal.innerHTML = renderRelayTerminal(latestEvent, data.projects);
+
+        if (bridgeState) bridgeState.textContent = latestEvent ? (getRelayRunState(latestEvent).done ? 'complete' : 'running') : 'listening';
+        if (projectCount) projectCount.textContent = data.projects.length;
+        if (eventCount) eventCount.textContent = data.events.length;
+
+        const latestEventId = latestEvent?.id || null;
+        terminal.classList.toggle('active', Boolean(latestEventId));
+        if (latestEventId && latestEventId !== osRelayLastEventId) {
+            terminal.classList.remove('event-pulse');
+            void terminal.offsetWidth;
+            terminal.classList.add('event-pulse');
+            osRelayLastEventId = latestEventId;
+        }
+    } catch (error) {
+        console.error('Error refreshing OS command center:', error);
+        if (bridgeState) bridgeState.textContent = 'offline';
+    }
+}
+
 function renderRelayProject(project, activeProjectId) {
     const activeClass = project.id === activeProjectId ? 'active' : '';
     const dirs = project.dirs.map(dir => `<span><i class="fas fa-folder"></i>${dir}</span>`).join('');
@@ -3005,17 +3042,19 @@ function renderRelayProject(project, activeProjectId) {
 
 function renderRelayEvent(event) {
     const icon = event.kind === 'feedback' ? 'fa-comment-dots' : 'fa-play';
-    const title = event.kind === 'feedback' ? 'Feedback routed' : 'Script directed';
+    const run = getRelayRunState(event);
+    const title = event.kind === 'feedback' ? 'Agent feedback run' : 'Agent script run';
     const detail = event.kind === 'feedback'
         ? (event.feedback || event.command)
         : `${event.script} → ${event.project}`;
 
     return `
-        <article class="relay-event-card">
+        <article class="relay-event-card ${run.done ? 'done' : 'running'}">
             <div class="relay-event-icon"><i class="fas ${icon}"></i></div>
             <div>
                 <div class="relay-event-title">
                     <span>${title}</span>
+                    <small>${run.done ? 'done' : `step ${run.visibleSteps.length}/${run.steps.length}`}</small>
                     <small>${new Date(event.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small>
                 </div>
                 <p>${escapeHtml(detail)}</p>
@@ -3041,39 +3080,64 @@ function renderRelayTerminal(event, projects) {
 
     const project = projects.find(item => item.id === event.project_id) || projects[0];
     const isFeedback = event.kind === 'feedback';
-    const lines = isFeedback
-        ? [
-            '$ nexus feedback attach --source phone',
-            `→ project: ${project.path}`,
-            `→ note: ${event.feedback || event.command}`,
-            '✓ feedback queued in dashboard',
-        ]
-        : [
-            `$ cd ${project.path}`,
-            `$ ./scripts/${event.script}`,
-            '→ uploading voice context packet...',
-            '→ binding mock PC runner...',
-            '✓ script uploaded and queued',
-        ];
+    const run = getRelayRunState(event);
+    const agentRun = event.agent_run || {};
+    const headerLabel = run.done ? (isFeedback ? 'feedback integrated' : 'agent run complete') : 'agent running';
+    const lines = [
+        `$ nexus-agent --from phone --event ${event.id}`,
+        `→ model: ${agentRun.mode || 'mock-llm-run'} / ${agentRun.agent || 'Nexus Project Agent'}`,
+        `→ objective: ${agentRun.objective || event.command}`,
+        ...run.visibleSteps.map((step, index) => {
+            const marker = index === run.visibleSteps.length - 1 && !run.done ? '…' : '✓';
+            return `${marker} ${step.label}: ${step.detail}`;
+        }),
+        ...(run.done ? [`✓ final: ${isFeedback ? 'feedback attached to project context' : `${event.script} queued with agent context`}`] : []),
+    ];
 
     return `
         <div class="relay-terminal-header">
             <span><i class="fas fa-terminal"></i> live pc terminal</span>
-            <small>${isFeedback ? 'feedback queued' : 'script queued'}</small>
+            <small>${headerLabel}</small>
         </div>
         <div class="relay-terminal-command">
-            <strong>${isFeedback ? 'Nexus feedback relay' : 'Nexus script runner'}</strong>
+            <strong>${agentRun.agent || (isFeedback ? 'Nexus feedback relay' : 'Nexus script runner')}</strong>
             <em>${escapeHtml(event.command)}</em>
+        </div>
+        <div class="relay-agent-progress" style="--progress:${run.progress}%">
+            <span></span>
         </div>
         <div class="relay-terminal-lines">
             ${lines.map((line, index) => {
-                const marker = line.startsWith('✓') ? '✓' : line.startsWith('→') ? '→' : '$';
-                const text = line.replace(/^[$→✓]\s?/, '');
+                const marker = line.startsWith('✓') ? '✓' : line.startsWith('→') ? '→' : line.startsWith('…') ? '…' : '$';
+                const text = line.replace(/^[$→✓…]\s?/, '');
                 return `<p style="--delay:${index * 90}ms"><span>${marker}</span>${escapeHtml(text)}</p>`;
             }).join('')}
-            <p class="relay-cursor"><span>▌</span> awaiting next phone command</p>
+            <p class="relay-cursor"><span>${run.done ? '▌' : '●'}</span>${run.done ? ' awaiting next phone command' : ' agent is still working...'}</p>
         </div>
     `;
+}
+
+function getRelayRunState(event) {
+    const defaultSteps = [
+        { label: 'Parse voice instruction', detail: `Intent: ${event.command}` },
+        { label: 'Retrieve project context', detail: `Opening ${event.project}.` },
+        { label: 'Draft agent plan', detail: 'Planning safe command execution.' },
+        { label: 'Execute mock command', detail: `Running ${event.script}.` },
+        { label: 'Report result', detail: 'Updating phone and web surfaces.' },
+    ];
+    const steps = event.agent_run?.steps || defaultSteps;
+    const startedAt = Number.isNaN(Date.parse(event.time)) ? Date.now() : Date.parse(event.time);
+    const elapsedMs = Math.max(0, Date.now() - startedAt);
+    const stepMs = 1700;
+    const visibleCount = Math.min(steps.length, Math.max(1, Math.floor(elapsedMs / stepMs) + 1));
+    const done = visibleCount >= steps.length && elapsedMs > stepMs * steps.length;
+    const progress = done ? 100 : Math.min(96, Math.round((elapsedMs / (stepMs * steps.length)) * 100));
+    return {
+        steps,
+        visibleSteps: steps.slice(0, visibleCount),
+        done,
+        progress,
+    };
 }
 
 function renderRelayEmptyState() {

@@ -187,7 +187,7 @@ class MainActivity : ComponentActivity() {
             listOf("navigate", "navigation", "map", "directions", "route").any(text::contains) -> AppDestination.Navigate
             listOf("search", "look up", "find", "research", "browser", "google").any(text::contains) -> AppDestination.Search
             listOf("task", "todo", "to do", "reminder").any(text::contains) -> AppDestination.Tasks
-            listOf("code", "script", "command", "terminal", "pc", "computer", "project", "feedback").any(text::contains) -> AppDestination.Code
+            listOf("code", "script", "command", "terminal", "pc", "computer", "project", "feedback", "agent").any(text::contains) -> AppDestination.Code
             else -> null
         }
     }
@@ -197,7 +197,7 @@ class MainActivity : ComponentActivity() {
         return when {
             listOf("send an email", "send email", "email sent", "send it", "compose email", "send a reply", "reply to sarah", "respond to sarah", "send sarah").any(text::contains) -> MockOutcome.EmailSent
             listOf("give feedback", "project feedback", "leave feedback", "add feedback", "note on this project").any(text::contains) -> MockOutcome.FeedbackQueued
-            listOf("run script", "run this script", "run the script", "run the deploy script", "send a command", "run a command", "upload script", "upload my computer code", "upload code", "script uploaded", "command to my pc").any(text::contains) -> MockOutcome.ScriptUploaded
+            listOf("run script", "run this script", "run the script", "run the deploy script", "send a command", "run a command", "upload script", "upload my computer code", "upload code", "script uploaded", "command to my pc", "tell the agent", "change the project", "update the project", "fix the project", "make it change").any(text::contains) -> MockOutcome.ScriptUploaded
             else -> MockOutcome.None
         }
     }
